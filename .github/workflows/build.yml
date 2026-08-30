@@ -1,0 +1,61 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build release APK (unsigned)
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Generate stable keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore zenin.jks \
+            -alias zenin \
+            -keyalg RSA -keysize 2048 -validity 10950 \
+            -storepass zenin12345 -keypass zenin12345 \
+            -dname "CN=Zenin, OU=Personal, O=Personal, L=Nowhere, S=Nowhere, C=RU"
+
+      - name: Sign APK
+        run: |
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          echo "Using build-tools: $BUILD_TOOLS"
+          UNSIGNED=app/build/outputs/apk/release/app-release-unsigned.apk
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$UNSIGNED" app-aligned.apk
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks zenin.jks \
+            --ks-key-alias zenin \
+            --ks-pass pass:zenin12345 \
+            --key-pass pass:zenin12345 \
+            --out Zenin.apk \
+            app-aligned.apk
+          "$BUILD_TOOLS/apksigner" verify --verbose Zenin.apk
+          echo "=== APK ready ==="
+          ls -la Zenin.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zenin-apk
+          path: Zenin.apk
+          if-no-files-found: error
