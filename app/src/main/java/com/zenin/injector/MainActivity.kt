@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
         var key by remember { mutableStateOf("") }
         var showKey by remember { mutableStateOf(false) }
         var busy by remember { mutableStateOf(false) }
-        var log by remember { mutableStateOf("Готов. Открой Standoff 2, зайди в лобби, введи ключ и жми INJECT.\n") }
+        var log by remember { mutableStateOf("Готов. Введи ключ и жми INJECT — открою Standoff 2, дам 15 сек зайти в лобби, потом инжект.\n") }
         val scroll = rememberScrollState()
 
         fun append(line: String) {
@@ -117,17 +117,17 @@ class MainActivity : ComponentActivity() {
                     }
                     busy = true
                     log = ""
-                    append("[*] Запуск...")
+                    append("[*] Открываю Standoff 2...")
+                    // Игра открывается СРАЗУ — за 15 сек задержки успеваешь зайти в лобби,
+                    // и только потом loader инжектит.
+                    launchGame()
                     lifecycleScope.launch {
                         val result = withContext(Dispatchers.IO) {
                             Injector.run(this@MainActivity, key.trim()) { line ->
                                 lifecycleScope.launch { append(line) }
                             }
                         }
-                        if (result) {
-                            append("[+] Loader запущен. Открываю Standoff 2...")
-                            launchGame()
-                        } else {
+                        if (!result) {
                             append("[x] Не удалось. Проверь рут и ключ.")
                         }
                         busy = false
